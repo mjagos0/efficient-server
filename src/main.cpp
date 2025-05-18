@@ -18,9 +18,9 @@
 
 int main() {
     std::array<ClientSocket, MAX_CONCURRENT_CLIENTS> clients;
-    std::queue<ClientMessage> reqQ;
-    std::condition_variable reqQCond;
-    std::mutex reqQMut;
+    std::queue<int> clientQueue;
+    std::condition_variable clientQCond;
+    std::mutex clientQMut;
     int epoll;
     
     // Setup epoll
@@ -33,11 +33,11 @@ int main() {
 
     // Prepare client sockets
     for (int i = 0; i != MAX_CONCURRENT_CLIENTS; i++) {
-        clients[i].initializeSocket(i, epoll, &reqQ, &reqQMut, &reqQCond);
+        clients[i].initializeSocket(i, epoll, &clientQueue, &clientQMut, &clientQCond);
     }
 
     // Setup threadPool
-    ThreadPool tp(clients, reqQ, reqQMut, reqQCond);
+    ThreadPool tp(clients, clientQueue, clientQMut, clientQCond);
 
     // Epoll loop
     server.acceptConnections();

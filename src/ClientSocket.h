@@ -15,12 +15,17 @@
 struct ClientSocket {
     int fd;
     int epoll;
-    std::queue<ClientMessage>* reqQ;
-    std::mutex* reqQMut;
-    std::queue<ClientMessage> socketRespQ;
+    std::queue<int>* clientQueue;
+    std::mutex* clientQMut;
+    std::condition_variable* clientQcond;
+
+    std::queue<ClientMessage> reqQ;
+    std::mutex reqQMut;
+    std::queue<ClientMessage> respQ;
     std::mutex respQMut;
-    std::condition_variable* reqQCond;
+    
     std::atomic<bool> isRegisteredForWrite;
+    std::atomic<bool> isRegisteredInClientQueue;
 
     uint16_t activeRequests;
 
@@ -33,14 +38,14 @@ struct ClientSocket {
     uint16_t writeBufferCursor;
     uint32_t writeMessageSize;
 
-    ClientSocket(const int fd, const int epoll, std::queue<ClientMessage>* reqQ,
-        std::mutex* reqQMut, std::condition_variable* reqQCond
+    ClientSocket(const int fd, const int epoll, std::queue<int>* clientQueue,
+        std::mutex* clientQMut, std::condition_variable* clientQcond
     ) 
-        : fd(fd), epoll(epoll), reqQ(reqQ), reqQMut(reqQMut), reqQCond(reqQCond),
-        isRegisteredForWrite(false) { }
+        : fd(fd), epoll(epoll), clientQueue(clientQueue), clientQMut(clientQMut), clientQcond(clientQcond),
+        isRegisteredForWrite(false), isRegisteredInClientQueue(false) { }
 
     ClientSocket()
-    : fd(-1), epoll(-1), reqQ(nullptr), reqQMut(nullptr), reqQCond(nullptr),
+    : fd(-1), epoll(-1), clientQueue(nullptr), clientQMut(nullptr), clientQcond(nullptr),
       isRegisteredForWrite(false), activeRequests(0),
       readBufferCursor(0), readMessageSize(0), wantsToClose(false),
       writeBufferCursor(0), writeMessageSize(0) { }
@@ -49,13 +54,13 @@ struct ClientSocket {
         close(fd);
     }
 
-    void initializeSocket(const int fd, const int epoll, std::queue<ClientMessage>* reqQ,
-        std::mutex* reqQMut, std::condition_variable* reqQCond) {
+    void initializeSocket(const int fd, const int epoll, std::queue<int>* clientQueue,
+        std::mutex* clientQMut, std::condition_variable* clientQcond) {
             this->fd = fd;
             this->epoll = epoll;
-            this->reqQ = reqQ;
-            this->reqQMut = reqQMut;
-            this->reqQCond = reqQCond;
+            this->clientQueue = clientQueue;
+            this->clientQMut = clientQMut;
+            this->clientQcond = clientQcond;
     }
 
     void setUpSocket() {
@@ -110,13 +115,10 @@ struct ClientSocket {
     }
 
     void addResponse(ClientMessage resp) {
-        {
-            std::unique_lock<std::mutex> lock(respQMut);
-            socketRespQ.push(resp);
-        }
+        std::unique_lock<std::mutex> lock(respQMut);
+        respQ.push(std::move(resp));
 
-        bool expected = false;
-        if (isRegisteredForWrite.compare_exchange_strong(expected, true)) {
+        if (!isRegisteredForWrite.exchange(true)) {
             registerToWrite();
         }
     }
@@ -156,12 +158,18 @@ struct ClientSocket {
                     memcpy(request.request.data(), readBuffer + PROTO_LENGTH_PREFIX, readMessageSize);
 
                     {
-                        std::unique_lock<std::mutex> lock(*reqQMut);
-                        reqQ->push(std::move(request));
+                        std::unique_lock<std::mutex> lock(reqQMut);
+                        reqQ.push(std::move(request));
                     }
-                    reqQCond->notify_one();
                     activeRequests++;
 
+                    bool expected = false;
+                    if (isRegisteredInClientQueue.compare_exchange_strong(expected, true)) {
+                        std::unique_lock<std::mutex> lock(*clientQMut);
+                        clientQueue->push(fd);
+                        clientQcond->notify_one();
+                    }
+                    
                     const uint16_t remaining = readBufferCursor - (PROTO_LENGTH_PREFIX + readMessageSize);
                     memmove(readBuffer, readBuffer + PROTO_LENGTH_PREFIX + readMessageSize, remaining);
                     readBufferCursor = remaining;
@@ -177,15 +185,15 @@ struct ClientSocket {
                 ClientMessage req;
                 {
                     std::unique_lock<std::mutex> lock(respQMut);
-                    if (socketRespQ.empty()) {
+                    if (respQ.empty()) {
                         bool expected = true;
                         if (isRegisteredForWrite.compare_exchange_strong(expected, false)) {
                             unregisterFromWrite();
                         }
                         return;
                     } else {
-                        req = std::move(socketRespQ.front());
-                        socketRespQ.pop();
+                        req = std::move(respQ.front());
+                        respQ.pop();
                     }
                 }
   
