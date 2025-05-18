@@ -8,50 +8,57 @@
 #include "ClientMessage.h"
 #include "schema.pb.h"
 
-#define READ_BUFFER_SIZE 31000
+#define MAX_PROTO_SIZE 32767
 #define WRITE_BUFFER_SIZE 512
 #define PROTO_LENGTH_PREFIX 4
 
-struct ClientSocket {
+struct alignas(64) ClientSocket {
     int fd;
     int epoll;
+
+    uint8_t readBuffer[MAX_PROTO_SIZE];
+    uint8_t writeBuffer[WRITE_BUFFER_SIZE];
+
+    uint16_t readBufferCursor;
+    uint32_t readMessageSize;
+    uint16_t writeBufferCursor;
+    uint32_t writeMessageSize;
+
+    uint16_t activeRequests;
+    bool wantsToClose;
+
+    std::atomic<bool> isRegisteredForWrite;
+    std::atomic<bool> isRegisteredInClientQueue;
+
+    std::queue<ClientMessage> reqQ;
+    std::mutex reqQMut;
+
+    std::queue<ClientMessage> respQ;
+    std::mutex respQMut;
+
     std::queue<int>* clientQueue;
     std::mutex* clientQMut;
     std::condition_variable* clientQcond;
 
-    std::queue<ClientMessage> reqQ;
-    std::mutex reqQMut;
-    std::queue<ClientMessage> respQ;
-    std::mutex respQMut;
-    
-    std::atomic<bool> isRegisteredForWrite;
-    std::atomic<bool> isRegisteredInClientQueue;
-
-    uint16_t activeRequests;
-
-    uint8_t writeBuffer[WRITE_BUFFER_SIZE];
-    uint16_t readBufferCursor;
-    uint32_t readMessageSize;
-    bool wantsToClose;
-
-    uint8_t readBuffer[READ_BUFFER_SIZE];
-    uint16_t writeBufferCursor;
-    uint32_t writeMessageSize;
+    ClientSocket()
+        : fd(-1), epoll(-1), readBufferCursor(0), readMessageSize(0),
+          writeBufferCursor(0), writeMessageSize(0), activeRequests(0),
+          wantsToClose(false), isRegisteredForWrite(false),
+          isRegisteredInClientQueue(false), clientQueue(nullptr),
+          clientQMut(nullptr), clientQcond(nullptr) { }
 
     ClientSocket(const int fd, const int epoll, std::queue<int>* clientQueue,
-        std::mutex* clientQMut, std::condition_variable* clientQcond
-    ) 
-        : fd(fd), epoll(epoll), clientQueue(clientQueue), clientQMut(clientQMut), clientQcond(clientQcond),
-        isRegisteredForWrite(false), isRegisteredInClientQueue(false) { }
-
-    ClientSocket()
-    : fd(-1), epoll(-1), clientQueue(nullptr), clientQMut(nullptr), clientQcond(nullptr),
-      isRegisteredForWrite(false), activeRequests(0),
-      readBufferCursor(0), readMessageSize(0), wantsToClose(false),
-      writeBufferCursor(0), writeMessageSize(0) { }
+                 std::mutex* clientQMut, std::condition_variable* clientQcond)
+        : fd(fd), epoll(epoll), readBufferCursor(0), readMessageSize(0),
+          writeBufferCursor(0), writeMessageSize(0), activeRequests(0),
+          wantsToClose(false), isRegisteredForWrite(false),
+          isRegisteredInClientQueue(false), clientQueue(clientQueue),
+          clientQMut(clientQMut), clientQcond(clientQcond) { }
 
     ~ClientSocket() {
-        close(fd);
+        if (fd != -1) {
+            close(fd);
+        }
     }
 
     void initializeSocket(const int fd, const int epoll, std::queue<int>* clientQueue,
@@ -83,8 +90,6 @@ struct ClientSocket {
     }
 
     void tearDownSocket() const {
-        std::cout << "Closing socket" << std::endl;
-
         if (epoll_ctl(epoll, EPOLL_CTL_DEL, fd, nullptr) == -1) {
             err(EXIT_FAILURE, "Failed to remove client socket from epoll");
         }
@@ -125,7 +130,7 @@ struct ClientSocket {
 
     void readFromSocket() {
         while (true) {
-            const int bytesRead = recv(fd, readBuffer + readBufferCursor, READ_BUFFER_SIZE - readBufferCursor, 0);
+            const int bytesRead = recv(fd, readBuffer + readBufferCursor, MAX_PROTO_SIZE - readBufferCursor, 0);
             if (bytesRead == -1)  {
                 if (errno == EAGAIN) {
                     break;
@@ -147,7 +152,7 @@ struct ClientSocket {
                     memcpy(&sizeBuffer, readBuffer, PROTO_LENGTH_PREFIX);
                     readMessageSize = ntohl(sizeBuffer);
 
-                    if (readMessageSize > READ_BUFFER_SIZE - PROTO_LENGTH_PREFIX) {
+                    if (readMessageSize > MAX_PROTO_SIZE - PROTO_LENGTH_PREFIX) {
                         err(EXIT_FAILURE, "Client sent larger message than buffer can handle");
                     }
                 }

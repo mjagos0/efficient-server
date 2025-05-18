@@ -1,16 +1,3 @@
-/*
-HashGrid
-
-Divide the 2D plane into 500 x 500 grid cells. Map plane points to grid cells (x // 500, y // 500).
-Hash gird points into integers xyHash(gridX, gridY), assign them to buckets xyHash(gridX, gridY) % GRID_BUCKET_COUNT
-Each bucket is a linked list to avoid collisions
-When inserting new point, measure euclidean distance between all points within 9 grid cell neighborhood
-Before searching, lock the 9-cell neighborhood in ascending order to avoid deadlocks.
-Insert new node if no match
-Unlock all buckets
-*/
-
-
 #include "HashGrid.h"
 
 #include <algorithm>

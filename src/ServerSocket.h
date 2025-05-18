@@ -9,7 +9,7 @@
 #include "ClientSocket.h"
 
 #define PORT 50088
-#define MAX_CONCURRENT_CLIENTS 256
+#define MAX_CONCURRENT_CLIENTS 128
 
 struct ServerSocket {
     std::array<ClientSocket, MAX_CONCURRENT_CLIENTS>& clients;

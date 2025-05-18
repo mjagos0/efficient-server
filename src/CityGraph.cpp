@@ -1,12 +1,3 @@
-/* CityGraph
-
-Only-add directed graph stores unique locations defined by HashGrid.
-Mutex lock protects each node's adjacency list during edge insertions.
-Atomics are used for efficiently adding lengths and write counts without locking.
-Averages are calculated lazily during graph traversal.
-*/
-
-
 #include "CityGraph.h"
 
 #include <queue>

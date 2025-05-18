@@ -5,8 +5,7 @@
 #include "ClientSocket.h"
 #include "CityGraph.h"
 #include "HashGrid.h"
-
-#define LOG_DEBUG(x) std::cout << x << std::endl
+#include "Debug.h"
 
 #define PREALLOC_GRAPH_NODES 5000000
 
