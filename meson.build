@@ -27,12 +27,13 @@ add_project_link_arguments(
 # Main app sources
 sources = [
   'src/main.cpp',
-  'src/schema.pb.cc',
-  'src/CityGraph.cpp',
-  'src/HashGrid.cpp'
+  'src/schema.pb.cc'
 ]
 
 exe = executable('main', sources,
   install : true,
-  dependencies : [protobuf_dep]
+  dependencies : [protobuf_dep],
+  # cpp_args : [
+  #  '-D_DEBUG'
+  # ]
 )

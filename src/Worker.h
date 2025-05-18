@@ -4,24 +4,16 @@
 #include "schema.pb.h"
 #include "ClientSocket.h"
 #include "CityGraph.h"
-#include "HashGrid.h"
 #include "Debug.h"
 
-#define PREALLOC_GRAPH_NODES 5000000
+Grid grid = Grid();
+CityGraph cityGraph = CityGraph(grid);
 
-CityGraph cityGraph = CityGraph(PREALLOC_GRAPH_NODES);
-HashGrid usp = HashGrid();
 
 struct Worker {
     google::protobuf::Arena arena;
-    std::vector<uint64_t> dist;
-    std::vector<uint32_t> gen;
     uint32_t currentGen = 1;
-
-    Worker() {
-        dist.resize(PREALLOC_GRAPH_NODES);
-        gen.resize(PREALLOC_GRAPH_NODES, 0);
-    }
+    DijkstraContext dijkstraContext;
 
     void processRequest(ClientMessage& request) { 
         Request* message = google::protobuf::Arena::Create<Request>(&arena);
@@ -86,9 +78,9 @@ struct Worker {
 
     void processWalk(const Walk& walk, Response* resp) {
         // LOG_DEBUG(walk.DebugString());
-        uint32_t nodePrev = usp.processPoint(walk.locations(0).x(), walk.locations(0).y());
+        uint32_t nodePrev = grid.addPoint(walk.locations(0).x(), walk.locations(0).y());
         for (int j = 1; j < walk.locations_size(); ++j) {
-            uint32_t nodeNext = usp.processPoint(walk.locations(j).x(), walk.locations(j).y());
+            uint32_t nodeNext = grid.addPoint(walk.locations(j).x(), walk.locations(j).y());
             cityGraph.addPath(nodePrev, nodeNext, walk.lengths(j-1));
             nodePrev = nodeNext;
         }
@@ -98,9 +90,9 @@ struct Worker {
     void processO2o(const OneToOne& o2o, Response* resp) {
         LOG_DEBUG(o2o.DebugString());
         uint64_t result = cityGraph.o2o(
-            usp.processPoint(o2o.origin().x(), o2o.origin().y()),
-            usp.processPoint(o2o.destination().x(), o2o.destination().y()),
-            dist, gen, currentGen
+            dijkstraContext,
+            grid.addPoint(o2o.origin().x(), o2o.origin().y()),
+            grid.addPoint(o2o.destination().x(), o2o.destination().y())
         );
         LOG_DEBUG(result);
         resp->set_status(Response::OK);
@@ -110,8 +102,8 @@ struct Worker {
     void processO2a(const OneToAll& o2a, Response* resp) {
         LOG_DEBUG(o2a.DebugString());
         uint64_t result = cityGraph.o2a(
-            usp.processPoint(o2a.origin().x(), o2a.origin().y()),
-            dist, gen, currentGen
+            dijkstraContext,
+            grid.addPoint(o2a.origin().x(), o2a.origin().y())
         );
         LOG_DEBUG(result);
         resp->set_status(Response::OK);
@@ -120,7 +112,7 @@ struct Worker {
 
     void processReset(Response* resp) {
         LOG_DEBUG("Received Reset request");
-        cityGraph.reset();
+        // cityGraph.reset();
         resp->set_status(Response::OK);
     }
 
