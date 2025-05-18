@@ -1,6 +1,5 @@
 #include <array>
 #include <mutex>
-#include "Grid.h"
 
 #define UNASSIGNED 0
 #define MAX_NODES 120000
@@ -83,9 +82,6 @@ struct DijkstraContext {
 struct CityGraph {
     std::array<Edge, MAX_NODES * MAX_EDGES> edges;
     std::array<std::mutex, MAX_NODES> nodeLocks;
-    Grid& grid;
-
-    CityGraph(Grid& grid) : grid(grid) { }
 
     inline uint32_t getEdgeOffset(uint32_t nodeId, uint32_t edgeIdx) const {
         return nodeId * MAX_EDGES + edgeIdx;
