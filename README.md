@@ -9,9 +9,9 @@ Full problem specification at https://esw.pages.fel.cvut.cz/labs/efficient-serve
 
 ### Techniques & Architecture
 - **TCP Epoll Server**: Edge-triggered epoll TCP server.
-- **ThreadPool** - ThreadPool with thread-safe request/response queues.
+- **ThreadPool**: ThreadPool with thread-safe request/response queues.
 - **Uniform Hash Grid**: Thread-safe data structure to identify unique locations. It uses 8-neighborhood-lock mechanism.
-- **Flat Graph representation & Flat Heap** - Thread-safe graph in respect to writers with cache-friendly readers access.
+- **Flat Graph representation & Flat Heap**: Thread-safe graph in respect to writers with cache-friendly readers access.
 
 Main thread runs an epoll-based server that manages both server and client sockets, handling socket creation, closure, reading, and writing. It reads incoming client requests and enqueues them into a local request queue (mutex-protected). It makes sure that the client exists in clientQueue (mutex-protected).
 
