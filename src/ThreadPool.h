@@ -8,7 +8,7 @@
 #include "ClientSocket.h"
 #include "Worker.h"
 
-#define THREADS 32
+#define THREADS 31
 
 struct ThreadPool {
     std::vector<std::thread> threadPool;

@@ -13,7 +13,7 @@ add_project_arguments(
   '-O3',
   '-march=native',
   '-pthread',
-  '-g',
+  # '-g',
   '-Wall',
   # '-fsanitize=address',
   # '-fsanitize=thread',

@@ -1,0 +1,12 @@
+# Ignore everything
+*
+
+# Exceptions
+!meson.build
+!README.md
+
+!src/
+!resources/
+!src/**
+!resources/**
+!.gitignore
