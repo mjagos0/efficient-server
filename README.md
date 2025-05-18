@@ -20,7 +20,7 @@ The main thread is accompanied by 31 worker threads, which wait for clients to a
 The workers work on CPU-bound tasks fully in parallel, processing both write (Walk) requests and read (OneToOne / OneToAll) requests using thread-safe grid & graph data structures.
 
 ### Performance & Bottlenecks
-The server has achieved best time 0.251 seconds on evaluation server, where it was tested against ~100 concurrent client connections and ~100 000 requests.
+The server has achieved best time 0.247 seconds on evaluation server, where it was tested against ~100 concurrent client connections and ~100 000 requests.
 
 CPU cycles are currently redistributed on CPU-bound tasks inside the worker threads:
 ```
