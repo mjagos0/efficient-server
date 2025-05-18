@@ -13,14 +13,16 @@ add_project_arguments(
   '-O3',
   '-march=native',
   '-pthread',
-  # '-g',
+  '-g',
   '-Wall',
   # '-fsanitize=address',
+  # '-fsanitize=thread',
   language: 'cpp'
 )
 
 add_project_link_arguments(
   # '-fsanitize=address',
+  # '-fsanitize=thread',
   language: 'cpp'
 )
 

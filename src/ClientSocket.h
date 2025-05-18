@@ -77,6 +77,18 @@ struct alignas(64) ClientSocket {
         wantsToClose = false;
         writeBufferCursor = 0;
         writeMessageSize = 0;
+
+        isRegisteredForWrite.store(false);
+        isRegisteredInClientQueue.store(false);
+
+        {
+            std::lock_guard<std::mutex> lock(reqQMut);
+            while (!reqQ.empty()) reqQ.pop();
+        }
+        {
+            std::lock_guard<std::mutex> lock(respQMut);
+            while (!respQ.empty()) respQ.pop();
+        }
     }
 
     void registerToEpoll() {

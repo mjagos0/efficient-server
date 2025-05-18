@@ -7,13 +7,17 @@
 #include <memory>
 #include <mutex>
 #include <algorithm>
+#include <array>
 
-struct HashGrid {
-    static constexpr int GRID_BUCKET_COUNT = 1 << 20;
-    static constexpr int FIELD_SIZE = 500;
-    static constexpr int RADIUS_THRESHOLD = FIELD_SIZE * FIELD_SIZE;
-    static constexpr int MAX_DELTA = FIELD_SIZE + 1;
+#define GRID_BUCKET_COUNT (1 << 17)
+#define CELL_SIZE 500
+#define RADIUS_THRESHOLD (CELL_SIZE * CELL_SIZE)
 
+struct alignas(64) AlignedMutex {
+    std::mutex m;
+};
+
+struct Grid {
     struct GridLocation {
         uint32_t nodeId;
         int32_t x, y;
@@ -27,12 +31,12 @@ struct HashGrid {
     };
 
     Node* buckets[GRID_BUCKET_COUNT]{};
-    std::mutex bucketLocks[GRID_BUCKET_COUNT];
+    AlignedMutex bucketLocks[GRID_BUCKET_COUNT];
     std::atomic<uint32_t> nodeIdSequence{1}; // 0 is reserved for unassigned
 
     uint32_t processPoint(const int32_t x, const int32_t y) {
-        const int gridX = x / FIELD_SIZE;
-        const int gridY = y / FIELD_SIZE;
+        const int gridX = x / CELL_SIZE;
+        const int gridY = y / CELL_SIZE;
 
         size_t neighborhoodIndices[9];
         size_t selfBucketIndex = 0;
@@ -54,7 +58,7 @@ struct HashGrid {
         int count = static_cast<int>(end - neighborhoodIndices);
 
         for (int j = 0; j < count; ++j) {
-            bucketLocks[neighborhoodIndices[j]].lock();
+            bucketLocks[neighborhoodIndices[j]].m.lock();
         }
 
         for (int j = 0; j < count; ++j) {
@@ -62,7 +66,7 @@ struct HashGrid {
             for (Node* node = buckets[index]; node != nullptr; node = node->next) {
                 if (isWithinRadius(x, y, node->data.x, node->data.y)) {
                     for (int k = 0; k < count; ++k) {
-                        bucketLocks[neighborhoodIndices[k]].unlock();
+                        bucketLocks[neighborhoodIndices[k]].m.unlock();
                     }
                     return node->data.nodeId;
                 }
@@ -74,7 +78,7 @@ struct HashGrid {
         buckets[selfBucketIndex] = newNode;
 
         for (int j = 0; j < count; ++j) {
-            bucketLocks[neighborhoodIndices[j]].unlock();
+            bucketLocks[neighborhoodIndices[j]].m.unlock();
         }
 
         return nodeId;
@@ -86,10 +90,24 @@ struct HashGrid {
 
     static bool isWithinRadius(int32_t x1, int32_t y1, int32_t x2, int32_t y2) {
         int dx = std::abs(x2 - x1);
-        if (dx > MAX_DELTA) return false;
+        if (dx > CELL_SIZE) return false;
         int dy = std::abs(y2 - y1);
-        if (dy > MAX_DELTA) return false;
+        if (dy > CELL_SIZE) return false;
         return (dx * dx + dy * dy) <= RADIUS_THRESHOLD;
+    }
+
+    void reset() {
+        for (size_t i = 0; i < GRID_BUCKET_COUNT; ++i) {
+            std::lock_guard<std::mutex> lock(bucketLocks[i].m);
+            Node* node = buckets[i];
+            while (node) {
+                Node* temp = node;
+                node = node->next;
+                delete temp;
+            }
+            buckets[i] = nullptr;
+        }
+        nodeIdSequence.store(1, std::memory_order_relaxed);
     }
 };
 

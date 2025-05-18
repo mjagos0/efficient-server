@@ -183,4 +183,10 @@ struct CityGraph {
         ctx.generation++;
         return total;
     }
+
+    void reset() {
+        for (auto& edge : edges) {
+            edge = Edge();
+        }
+    }
 };
