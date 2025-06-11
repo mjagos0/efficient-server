@@ -3,9 +3,7 @@ This application is a **high-performance TCP server** designed to process locati
 - **Walk**: Vehicle-reported locations and distances that are used to build directed graph representing the city.
 - **OneToOne / OneToAll**: Requests to compute shortest paths to all using the accumulated graph.
 
-Each path is formed from discrete, noisy location data points. The server clusters locations within 50 cm into a single physical node and averages received edge lengths when respoding to shortest path requests.
-
-Full problem specification at https://esw.pages.fel.cvut.cz/labs/efficient-servers/
+Each path is formed from discrete, noisy location data points. The server clusters locations within 50 cm into a single physical node and averages received edge lengths when respoding to shortest path requests. Full problem specification at https://esw.pages.fel.cvut.cz/labs/efficient-servers/
 
 ### Techniques & Architecture
 - **TCP Epoll Server**: Edge-triggered epoll TCP server.
@@ -30,7 +28,8 @@ CPU cycles are currently redistributed on CPU-bound tasks inside the worker thre
 + 20.93% Worker::deserializeProtobuf (inlined)
 ```
 
-Considerable improvement could be achieved with an approach that would resolve high contention on Grid 8-neighborhood-lock mechanism.
+The server has achieved second place among all participant solutions.
+The ladder can be viewed here: https://rtime.felk.cvut.cz/esw/server/results/all/
 
 ### Limitations & Assumptions
 To achieve the highest possible performance on evaluation servers, these limitations were put in place:
